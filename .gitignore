@@ -1,0 +1,8 @@
+venv/
+dist/
+build/
+__pycache__/
+*.spec
+bin/ffmpeg.exe
+bin/ffprobe.exe
+settings.json
