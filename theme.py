@@ -148,7 +148,7 @@ class TitleBar(tk.Frame):
 
         subtitle = tk.Label(
             row,
-            text="YouTube to WAV / MP3",
+            text="YouTube & Reels to WAV / MP3",
             font=FONT_SMALL,
             fg=TEXT_MUTED,
             bg=SURFACE,

@@ -38,7 +38,7 @@ class WavishApp(tk.Tk):
         self.save_dir = tk.StringVar(value=settings["save_dir"])
         self.output_format = tk.StringVar(value=settings["output_format"])
         self.url_var = tk.StringVar()
-        self.status_var = tk.StringVar(value="Paste a YouTube URL and press Extract.")
+        self.status_var = tk.StringVar(value="Paste a YouTube or Instagram Reel URL and press Extract.")
         self._busy = False
         self._download_btn: tk.Button | None = None
 
@@ -75,7 +75,7 @@ class WavishApp(tk.Tk):
         inner = tk.Frame(url_card, bg=SURFACE, padx=16, pady=14)
         inner.pack(fill="x")
 
-        label(inner, "YouTube URL", muted=True, small=True).pack(anchor="w")
+        label(inner, "YouTube or Instagram URL", muted=True, small=True).pack(anchor="w")
 
         url_row = tk.Frame(inner, bg=SURFACE)
         url_row.pack(fill="x", pady=(6, 0))
@@ -190,7 +190,7 @@ class WavishApp(tk.Tk):
             return
         url = self.url_var.get().strip()
         if not url:
-            messagebox.showwarning("Wavish", "Please paste a YouTube URL.")
+            messagebox.showwarning("Wavish", "Please paste a YouTube or Instagram URL.")
             return
 
         save_dir = Path(self.save_dir.get().strip())

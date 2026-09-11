@@ -43,6 +43,8 @@ Ensure-Ffmpeg
     --windowed `
     --name Wavish `
     --add-data "bin\ffmpeg.exe;bin" `
+    --collect-all yt_dlp `
+    --collect-all curl_cffi `
     app.py
 
 Write-Host ""
