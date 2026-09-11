@@ -37,7 +37,7 @@ if (-not (Test-Path "venv")) {
 & ".\venv\Scripts\pip.exe" install -r requirements.txt
 Ensure-Ffmpeg
 
-& ".\venv\Scripts\pyinstaller.exe" `
+& ".\venv\Scripts\python.exe" -m PyInstaller `
     --noconfirm `
     --onefile `
     --windowed `
