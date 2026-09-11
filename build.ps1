@@ -46,6 +46,9 @@ Ensure-Ffmpeg
     --collect-all yt_dlp `
     --collect-all curl_cffi `
     app.py
+if ($LASTEXITCODE -ne 0) {
+    throw "PyInstaller failed with exit code $LASTEXITCODE"
+}
 
 Write-Host ""
 Write-Host "Done: dist\Wavish.exe"
