@@ -37,13 +37,18 @@ if (-not (Test-Path "venv")) {
 & ".\venv\Scripts\pip.exe" install -r requirements.txt
 Ensure-Ffmpeg
 
-& ".\venv\Scripts\pyinstaller.exe" `
+& ".\venv\Scripts\python.exe" -m PyInstaller `
     --noconfirm `
     --onefile `
     --windowed `
     --name Wavish `
     --add-data "bin\ffmpeg.exe;bin" `
+    --collect-all yt_dlp `
+    --collect-all curl_cffi `
     app.py
+if ($LASTEXITCODE -ne 0) {
+    throw "PyInstaller failed with exit code $LASTEXITCODE"
+}
 
 Write-Host ""
 Write-Host "Done: dist\Wavish.exe"
