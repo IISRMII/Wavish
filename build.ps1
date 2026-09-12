@@ -34,7 +34,13 @@ if (-not (Test-Path "venv")) {
     python -m venv venv
 }
 
-& ".\venv\Scripts\pip.exe" install -r requirements.txt
+$python = Join-Path $Root "venv\Scripts\python.exe"
+if (Get-Command uv -ErrorAction SilentlyContinue) {
+    uv pip install --python $python -r requirements.txt
+} else {
+    & $python -m pip install -r requirements.txt
+    if ($LASTEXITCODE -ne 0) { throw "pip install failed" }
+}
 Ensure-Ffmpeg
 
 & ".\venv\Scripts\python.exe" -m PyInstaller `
