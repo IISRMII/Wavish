@@ -8,6 +8,7 @@ from typing import Callable
 from urllib.parse import urlparse
 
 import yt_dlp
+from yt_dlp.networking.impersonate import ImpersonateTarget
 
 from settings_store import OutputFormat
 
@@ -44,6 +45,7 @@ def ffmpeg_path() -> str:
 
 def sanitize_filename(name: str, max_len: int = 180) -> str:
     cleaned = re.sub(r'[<>:"/\\|?*]', "", name).strip().strip(".")
+    cleaned = re.sub(r"[\x00-\x1f\x7f]", "", cleaned)
     cleaned = re.sub(r"\s+", " ", cleaned)
     if not cleaned:
         cleaned = "audio"
@@ -68,41 +70,70 @@ def _output_title(info: dict, fallback: str) -> str:
     return sanitize_filename(title or fallback)
 
 
-def _friendly_error(url: str, exc: Exception) -> RuntimeError:
-    text = str(exc).strip() or "Download failed."
-    lower = text.lower()
-    instagram = is_instagram_url(url) or "instagram" in lower
+_BROWSER_COOKIE_ORDER = ("chrome", "edge", "firefox", "brave")
 
-    if instagram and any(
+
+def _needs_instagram_retry(exc: Exception) -> bool:
+    lower = str(exc).lower()
+    return any(
         token in lower
         for token in (
             "empty media",
             "login",
             "cookies",
-            "not available",
             "rate-limit",
             "rate limit",
-            "please wait",
+            "csrf",
+            "restricted",
+            "registered users",
+            "impersonat",
         )
-    ):
+    )
+
+
+def _friendly_error(url: str, exc: Exception) -> RuntimeError:
+    text = str(exc).strip() or "Download failed."
+    instagram = is_instagram_url(url) or "instagram" in text.lower()
+
+    if instagram:
         return RuntimeError(
-            "Instagram blocked this download. Public Reels usually work; "
-            "private or login-only clips cannot be extracted."
-        )
-    if instagram and ("impersonate" in lower or "impersonation" in lower):
-        return RuntimeError(
-            "Instagram needs browser impersonation. Install it with: pip install curl_cffi"
+            "Instagram blocked this Reel.\n\n"
+            "If you can watch it logged in: open Instagram in Chrome or Edge, "
+            "then try Extract again. Close the browser if Wavish still cannot "
+            "read cookies.\n\n"
+            "Private or follower-only clips cannot be extracted."
         )
     return exc if isinstance(exc, RuntimeError) else RuntimeError(text)
 
 
-def _impersonate_target():
-    try:
-        from yt_dlp.networking.impersonate import ImpersonateTarget
+def _base_ydl_opts(
+    out_template: str,
+    ffmpeg: str,
+    on_status: Callable[[str], None] | None,
+    on_progress: Callable[[float], None] | None,
+) -> dict:
+    return {
+        "format": "bestaudio/best",
+        "outtmpl": out_template,
+        "noplaylist": True,
+        "quiet": True,
+        "no_warnings": True,
+        "restrictfilenames": True,
+        "ffmpeg_location": str(Path(ffmpeg).parent),
+        # Any available curl_cffi target — Instagram rejects anonymous requests without this.
+        "impersonate": ImpersonateTarget(),
+        "progress_hooks": [
+            lambda d: _progress_hook(d, on_status, on_progress),
+        ],
+    }
 
-        return ImpersonateTarget(client="chrome")
-    except Exception:
-        return None
+
+def _extract_info(url: str, ydl_opts: dict) -> dict:
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        info = ydl.extract_info(url, download=True)
+    if info is None:
+        raise RuntimeError("Could not read video information.")
+    return info
 
 
 def _progress_hook(
@@ -155,31 +186,28 @@ def download_audio(
         out_template = str(tmp_path / "%(title)s.%(id)s.%(ext)s")
 
         # Instagram Reels are muxed video; bestaudio falls back to best.
-        ydl_opts: dict = {
-            "format": "bestaudio/best",
-            "outtmpl": out_template,
-            "noplaylist": True,
-            "quiet": True,
-            "no_warnings": True,
-            "restrictfilenames": True,
-            "ffmpeg_location": str(Path(ffmpeg).parent),
-            "progress_hooks": [
-                lambda d: _progress_hook(d, on_status, on_progress),
-            ],
-        }
-        if is_instagram_url(url):
-            impersonate = _impersonate_target()
-            if impersonate is not None:
-                ydl_opts["impersonate"] = impersonate
+        ydl_opts = _base_ydl_opts(out_template, ffmpeg, on_status, on_progress)
+        info: dict | None = None
 
         try:
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(url, download=True)
-        except Exception as exc:
-            raise _friendly_error(url, exc) from exc
+            info = _extract_info(url, ydl_opts)
+        except Exception as first:
+            if not (is_instagram_url(url) and _needs_instagram_retry(first)):
+                raise _friendly_error(url, first) from first
 
-        if info is None:
-            raise RuntimeError("Could not read video information.")
+            last: Exception = first
+            for browser in _BROWSER_COOKIE_ORDER:
+                status(f"Instagram asked for a login — trying {browser.title()} cookies…")
+                retry_opts = dict(ydl_opts)
+                retry_opts["cookiesfrombrowser"] = (browser,)
+                try:
+                    info = _extract_info(url, retry_opts)
+                    break
+                except Exception as exc:
+                    last = exc
+
+            if info is None:
+                raise _friendly_error(url, last) from last
 
         downloaded = [
             path
@@ -238,6 +266,8 @@ def download_audio(
             cmd,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
         )
         if result.returncode != 0:

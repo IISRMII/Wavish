@@ -45,7 +45,7 @@ Settings are saved next to the exe in `settings.json`.
 - Instagram Reels (`instagram.com/reel/…` and `/reels/…`)
 - Instagram video posts (`instagram.com/p/…`)
 
-Public links work. Private or login-only Instagram clips do not.
+Public YouTube links and many public Reels work logged-out. If Instagram asks for a login, Wavish retries using cookies from Chrome, Edge, Firefox, or Brave — be signed into Instagram in that browser (close it if cookie reading fails). Private or follower-only clips cannot be extracted.
 
 Only extract audio you have the right to use — your own uploads, or content you have permission for.
 
